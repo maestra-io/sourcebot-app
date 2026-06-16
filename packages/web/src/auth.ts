@@ -67,6 +67,13 @@ export const getProviders = () => {
             provider: Google({
                 clientId: env.AUTH_GOOGLE_CLIENT_ID,
                 clientSecret: env.AUTH_GOOGLE_CLIENT_SECRET,
+                // Link Google sign-in to a pre-existing user with the same email
+                // (e.g. an account first created via credentials/email). Safe
+                // here because Google verifies email ownership AND the signIn
+                // callback below additionally requires email_verified===true and
+                // the maestra.io workspace domain, so this can't be used to hijack
+                // an account via an unverified third-party email.
+                allowDangerousEmailAccountLinking: true,
                 authorization: {
                     params: {
                         // Request a refresh token and surface the account chooser.
