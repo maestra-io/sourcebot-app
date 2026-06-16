@@ -3,6 +3,7 @@ import { cache } from "react";
 import NextAuth, { DefaultSession, Session, User as AuthJsUser } from "next-auth"
 import Credentials from "next-auth/providers/credentials"
 import EmailProvider from "next-auth/providers/nodemailer";
+import Google from "next-auth/providers/google";
 import { __unsafePrisma } from "@/prisma";
 import { env, getSMTPConnectionURL } from "@sourcebot/shared";
 import { User } from '@sourcebot/db';
@@ -55,6 +56,33 @@ declare module 'next-auth/jwt' {
 
 export const getProviders = () => {
     const providers: IdentityProvider[] = [...eeIdentityProviders];
+
+    // Google OAuth login (maestra fork addition). Implemented here in the
+    // FSL-licensed auth layer using the stock Auth.js Google provider, NOT via
+    // the EE getEEIdentityProviders() path, so it does not require the paid
+    // "sso" entitlement. Sign-in is further restricted to a single Google
+    // Workspace domain in the signIn callback below (AUTH_GOOGLE_ALLOWED_HOSTED_DOMAIN).
+    if (env.AUTH_GOOGLE_CLIENT_ID && env.AUTH_GOOGLE_CLIENT_SECRET) {
+        providers.push({
+            provider: Google({
+                clientId: env.AUTH_GOOGLE_CLIENT_ID,
+                clientSecret: env.AUTH_GOOGLE_CLIENT_SECRET,
+                authorization: {
+                    params: {
+                        // Request a refresh token and surface the account chooser.
+                        access_type: "offline",
+                        prompt: "select_account",
+                        // Hint Google to scope the chooser to the workspace domain
+                        // when configured (defense-in-depth; enforced server-side below).
+                        ...(env.AUTH_GOOGLE_ALLOWED_HOSTED_DOMAIN
+                            ? { hd: env.AUTH_GOOGLE_ALLOWED_HOSTED_DOMAIN }
+                            : {}),
+                    },
+                },
+            }),
+            purpose: "sso",
+        });
+    }
 
     const smtpConnectionUrl = getSMTPConnectionURL();
     if (smtpConnectionUrl && env.EMAIL_FROM_ADDRESS && env.AUTH_EMAIL_CODE_LOGIN_ENABLED === 'true') {
@@ -239,7 +267,29 @@ const nextAuthResult = NextAuth({
         }
     },
     callbacks: {
-        async signIn({ account }) {
+        async signIn({ account, profile }) {
+            // Google SSO domain guard (maestra fork addition). When an allowed
+            // hosted domain is configured, only allow Google sign-ins whose
+            // verified email belongs to that Google Workspace domain. Without
+            // this, any Google account on the internet could mint a Sourcebot
+            // user (and the very first one would become the org OWNER, see
+            // onCreateUser). The `hd` claim is only present for Workspace
+            // accounts; we also cross-check the email domain.
+            if (account?.provider === 'google') {
+                const allowedDomain = env.AUTH_GOOGLE_ALLOWED_HOSTED_DOMAIN;
+                if (allowedDomain) {
+                    const googleProfile = profile as
+                        | { hd?: string; email?: string; email_verified?: boolean }
+                        | undefined;
+                    const hostedDomain = googleProfile?.hd;
+                    const emailDomain = googleProfile?.email?.split('@')[1];
+                    const emailVerified = googleProfile?.email_verified === true;
+                    if (!emailVerified || (hostedDomain !== allowedDomain && emailDomain !== allowedDomain)) {
+                        return false;
+                    }
+                }
+            }
+
             const matchingProvider = account
                 ? getProviders().find((p) => getEffectiveProviderId(p.provider) === account.provider)
                 : undefined;

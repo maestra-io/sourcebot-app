@@ -139,6 +139,15 @@ const options = {
         AUTH_CREDENTIALS_LOGIN_ENABLED: booleanSchema.default('true'),
         AUTH_EMAIL_CODE_LOGIN_ENABLED: booleanSchema.default('false'),
 
+        // Google OAuth login (maestra fork addition, FSL-licensed — implemented
+        // outside ee/ so it does not depend on the EE "sso" entitlement).
+        // Enabled when both client id and secret are present. The optional
+        // hosted-domain guard restricts sign-in to a single Google Workspace
+        // domain (enforced in the auth.ts signIn callback).
+        AUTH_GOOGLE_CLIENT_ID: z.string().optional(),
+        AUTH_GOOGLE_CLIENT_SECRET: z.string().optional(),
+        AUTH_GOOGLE_ALLOWED_HOSTED_DOMAIN: z.string().optional(),
+
         /**
          * Relative time from now in seconds when to expire the session.
          * 
