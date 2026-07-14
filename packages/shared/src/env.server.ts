@@ -227,6 +227,10 @@ const options = {
 
         CONFIG_PATH: z.string(),
 
+        // How long terminal (COMPLETED / FAILED) RepoIndexingJob rows are retained before the
+        // pruner deletes them. 0 disables pruning. @see: backend/src/repoIndexingJobPruner.ts
+        REPO_INDEXING_JOB_RETENTION_DAYS: numberSchema.default(7),
+
         // Misc UI flags
         SECURITY_CARD_ENABLED: booleanSchema.default('false'),
 
