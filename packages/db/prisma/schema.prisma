@@ -107,6 +107,11 @@ model RepoIndexingJob {
   repoId Int
 
   @@index([repoId, type, status])
+  /// Covers the scheduler's "is this repo already queued/recently indexed" anti-join
+  /// (see RepoIndexManager.scheduleIndexJobs). Without these the subquery falls back to a
+  /// sequential scan of the whole job history on every polling tick.
+  @@index([type, status, createdAt])
+  @@index([type, status, completedAt])
 }
 
 enum RepoPermissionSyncJobStatus {
