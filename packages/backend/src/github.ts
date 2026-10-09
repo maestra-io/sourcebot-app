@@ -165,7 +165,8 @@ export const getGitHubReposFromConfig = async (config: GithubConnectionConfig, s
     });
 
 
-    if (isAuthenticated) {
+    // maestra: GET /user is a 403 for an installation token (ghs_), which has no user.
+    if (isAuthenticated && !(token && detectGitHubTokenType(token) === 'app_installation')) {
         try {
             await octokit.rest.users.getAuthenticated();
         } catch (error) {

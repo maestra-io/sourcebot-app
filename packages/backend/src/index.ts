@@ -13,6 +13,7 @@ import { INDEX_CACHE_DIR, REPOS_CACHE_DIR, SHUTDOWN_SIGNALS } from './constants.
 import { AccountPermissionSyncer } from "./ee/accountPermissionSyncer.js";
 import { AuditLogPruner } from "./ee/auditLogPruner.js";
 import { GithubAppManager } from "./ee/githubAppManager.js";
+import { startGithubAppToken } from "./githubAppToken.js";
 import { RepoPermissionSyncer } from './ee/repoPermissionSyncer.js';
 import { shutdownPosthog } from "./posthog.js";
 import { PromClient } from './promClient.js';
@@ -51,6 +52,9 @@ try {
 const promClient = new PromClient();
 
 const settings = await getConfigSettings(env.CONFIG_PATH);
+
+// maestra: before anything reads GITHUB_TOKEN (see githubAppToken.ts).
+await startGithubAppToken();
 
 if (hasEntitlement('github-app')) {
     await GithubAppManager.getInstance().init(prisma);

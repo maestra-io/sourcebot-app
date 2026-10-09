@@ -150,6 +150,8 @@ export const getAuthCredentialsForRepo = async (repo: RepoWithConnections, logge
                     cloneUrlWithToken: createGitCloneUrlWithToken(
                         repo.cloneUrl,
                         {
+                            // maestra: the username an installation token needs; a PAT ignores it.
+                            username: 'x-access-token',
                             password: token,
                         }
                     ),
