@@ -1,6 +1,9 @@
 import { generateKeyPairSync, createVerify } from 'crypto';
+import { mkdtempSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import { describe, expect, test, vi } from 'vitest';
-import { githubAppJwt, startGithubAppToken } from './githubAppToken';
+import { followGithubTokenFile, githubAppJwt, startGithubAppToken } from './githubAppToken';
 
 vi.mock('@sourcebot/shared', () => ({
     createLogger: () => ({ info: () => {}, error: () => {} }),
@@ -45,5 +48,47 @@ describe('startGithubAppToken', () => {
         const fetchImpl = vi.fn(async () => new Response('{}', { status: 401 }));
         const env: NodeJS.ProcessEnv = { GITHUB_APP_ID: '1', GITHUB_APP_INSTALLATION_ID: '2', GITHUB_APP_PRIVATE_KEY: pem };
         await expect(startGithubAppToken(env, fetchImpl as unknown as typeof fetch)).rejects.toThrow(/HTTP 401/);
+    });
+});
+
+describe('GITHUB_TOKEN_FILE', () => {
+    const tokenFile = (content: string) => {
+        const path = join(mkdtempSync(join(tmpdir(), 'sb-token-')), 'token');
+        writeFileSync(path, content);
+        return path;
+    };
+
+    test('sets GITHUB_TOKEN from the file and mints nothing', async () => {
+        const fetchImpl = vi.fn();
+        const env: NodeJS.ProcessEnv = { GITHUB_TOKEN_FILE: tokenFile('ghs_vault\n') };
+        expect(await startGithubAppToken(env, fetchImpl as unknown as typeof fetch)).toBe(true);
+        expect(env.GITHUB_TOKEN).toBe('ghs_vault');
+        expect(fetchImpl).not.toHaveBeenCalled();
+    });
+
+    test('refuses the file together with the App variables', async () => {
+        await expect(startGithubAppToken({ GITHUB_TOKEN_FILE: tokenFile('t'), GITHUB_APP_ID: '1' }, vi.fn())).rejects.toThrow(/exclusive/);
+    });
+
+    test('fails the start on an empty file', () => {
+        expect(() => followGithubTokenFile(tokenFile(' \n'), {})).toThrow(/empty/);
+    });
+
+    test('follows the file and keeps the last token when it empties', async () => {
+        vi.useFakeTimers();
+        try {
+            const path = tokenFile('one');
+            const env: NodeJS.ProcessEnv = {};
+            const timer = followGithubTokenFile(path, env, 1000);
+            writeFileSync(path, 'two');
+            await vi.advanceTimersByTimeAsync(1000);
+            expect(env.GITHUB_TOKEN).toBe('two');
+            writeFileSync(path, '');
+            await vi.advanceTimersByTimeAsync(1000);
+            expect(env.GITHUB_TOKEN).toBe('two');
+            clearInterval(timer);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });
