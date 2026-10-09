@@ -23,8 +23,10 @@ permissions:
   packages: read
 
 env:
-  ECR_REGISTRY: 515260921971.dkr.ecr.eu-central-1.amazonaws.com
-  AWS_REGION: eu-central-1
+  # us-west-2: eu-central-1 ECR is write-frozen (IAM policy EcrEuCentral1WriteFreeze) and
+  # us-iota-lw-kube-infra pulls sourcebot from us-west-2.
+  ECR_REGISTRY: 515260921971.dkr.ecr.us-west-2.amazonaws.com
+  AWS_REGION: us-west-2
   TELEPORT_FQDN: teleport.maestra.io:443
   TELEPORT_TOKEN: image-push-github-actions-sourcebot-app
   AWS_ROLE_ARN: "arn:aws:iam::515260921971:role/teleport-image-push"
