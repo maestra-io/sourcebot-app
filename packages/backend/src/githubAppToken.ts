@@ -3,13 +3,47 @@
 // puts an installation token into its own GITHUB_TOKEN and renews it every 30 min (GitHub
 // expires it after 60). Connections keep `token: { env: GITHUB_TOKEN }`: getTokenFromConfig
 // reads process.env on every call, so the listing and every clone/fetch see the fresh one.
+// With GITHUB_TOKEN_FILE set instead, the token is minted outside the process (a VSO
+// VaultDynamicSecret of the central Vault engine github-app/, 1h, re-minted at 67%) and
+// GITHUB_TOKEN follows the file: read at start, re-read every minute. Exclusive with the App.
 import { createSign } from "crypto";
+import { readFileSync } from "fs";
 import { createLogger } from "@sourcebot/shared";
 
 const logger = createLogger('github-app-token');
 
 const RENEW_MS = 30 * 60_000;
 const RETRY_MS = 60_000;
+const FILE_POLL_MS = 60_000;
+
+/** GITHUB_TOKEN from `path`, kept in step with it. A missing or empty file fails the start. */
+export const followGithubTokenFile = (
+    path: string,
+    env: NodeJS.ProcessEnv = process.env,
+    pollMs = FILE_POLL_MS,
+): NodeJS.Timeout => {
+    const load = (): boolean => {
+        const token = readFileSync(path, 'utf8').trim();
+        if (!token) {
+            throw new Error(`GITHUB_TOKEN_FILE ${path} is empty`);
+        }
+        const changed = env.GITHUB_TOKEN !== token;
+        env.GITHUB_TOKEN = token;
+        return changed;
+    };
+    load();
+    logger.info(`GitHub token file ${path} in use`);
+    return setInterval(() => {
+        try {
+            if (load()) {
+                logger.info(`GitHub token file ${path} reloaded`);
+            }
+        } catch (error) {
+            // The previous token stays until GitHub expires it; never unset it.
+            logger.error(`GitHub token file ${path} reload failed: ${error}`);
+        }
+    }, pollMs).unref();
+};
 
 export const githubAppJwt = (appId: string, privateKeyPem: string, nowMs = Date.now()): string => {
     const b64 = (value: object) => Buffer.from(JSON.stringify(value)).toString('base64url');
@@ -59,6 +93,14 @@ export const startGithubAppToken = async (
     const privateKey = env.GITHUB_APP_PRIVATE_KEY;
     // Out of the environment before anything is spawned: git children inherit it.
     delete env.GITHUB_APP_PRIVATE_KEY;
+    const tokenFile = env.GITHUB_TOKEN_FILE;
+    if (tokenFile) {
+        if (appId || installationId || privateKey) {
+            throw new Error('GITHUB_TOKEN_FILE and the GITHUB_APP_* variables are exclusive');
+        }
+        followGithubTokenFile(tokenFile, env);
+        return true;
+    }
     if (!appId && !installationId && !privateKey) {
         return false;
     }
