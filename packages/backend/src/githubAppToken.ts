@@ -36,6 +36,8 @@ export const mintInstallationToken = async (
         },
         // Down-scoped to what indexing needs, whatever else the App is granted.
         body: JSON.stringify({ permissions: { contents: 'read', metadata: 'read' } }),
+        // Covers the body read too: a stalled GitHub must not park the start or the renewal loop.
+        signal: AbortSignal.timeout(30_000),
     });
     if (!response.ok) {
         throw new Error(`GitHub App installation token request failed: HTTP ${response.status}`);
