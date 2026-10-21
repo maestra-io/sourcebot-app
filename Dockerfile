@@ -16,7 +16,7 @@ ARG NEXT_PUBLIC_LANGFUSE_BASE_URL
 ARG NEXT_PUBLIC_BUILD_COMMIT_SHA
 
 FROM node:24-alpine3.23 AS node-alpine
-FROM golang:1.25-alpine AS go-alpine
+FROM golang:1.26.10-alpine AS go-alpine
 # ----------------------------------
 
 # ------ Build Zoekt ------
@@ -26,6 +26,8 @@ WORKDIR /zoekt
 COPY vendor/zoekt/go.mod vendor/zoekt/go.sum ./
 RUN go mod download
 COPY vendor/zoekt ./
+# x/net and klauspost/compress CVE fixes not yet in the pinned zoekt submodule.
+RUN go get golang.org/x/net@v0.60.0 github.com/klauspost/compress@v1.18.7 && go mod tidy
 RUN CGO_ENABLED=0 GOOS=linux go build -o /cmd/ ./cmd/...
 # -------------------------
 

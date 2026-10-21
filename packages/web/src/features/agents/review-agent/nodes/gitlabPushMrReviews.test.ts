@@ -100,7 +100,7 @@ describe('gitlabPushMrReviews', () => {
 
         await gitlabPushMrReviews(client, 101, MOCK_PAYLOAD, SINGLE_REVIEW);
 
-        const noteBody = client.MergeRequestNotes.create.mock.calls[0][2] as string;
+        const noteBody = vi.mocked(client.MergeRequestNotes.create).mock.calls[0][2] as string;
         expect(noteBody).toContain('src/foo.ts');
     });
 
@@ -115,7 +115,7 @@ describe('gitlabPushMrReviews', () => {
 
         await gitlabPushMrReviews(client, 101, MOCK_PAYLOAD, multiLineReviews);
 
-        const noteBody = client.MergeRequestNotes.create.mock.calls[0][2] as string;
+        const noteBody = vi.mocked(client.MergeRequestNotes.create).mock.calls[0][2] as string;
         expect(noteBody).toContain('10');
         expect(noteBody).toContain('20');
         expect(noteBody).toContain('Refactor this block');
