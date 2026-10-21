@@ -7,6 +7,8 @@ yarn:
 	yarn install
 	yarn build:deps
 
+# Local dev build from the pinned submodule as-is. The Docker image also
+# applies the go get CVE overrides in the Dockerfile's zoekt-builder stage.
 zoekt:
 	mkdir -p bin
 	go build -C vendor/zoekt -o $(CURDIR)/bin ./cmd/...
