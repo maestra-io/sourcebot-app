@@ -15,8 +15,9 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - name: Checkout repository
-              uses: actions/checkout@v4
+              uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
               with:
+                  persist-credentials: false
                   ref: main
                   fetch-depth: 0
 
@@ -34,7 +35,7 @@ jobs:
                   echo "Detected version: $VERSION"
                   echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-            - uses: linear/linear-release-action@v0
+            - uses: linear/linear-release-action@30f9ae77461ec29f07fffe0c52edd1909bfbb6f5 # v0.18.1
               with:
                   access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
                   version: ${{ steps.extract_version.outputs.version }}
