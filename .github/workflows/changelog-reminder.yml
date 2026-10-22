@@ -13,5 +13,5 @@ jobs:
       contents: read
       pull-requests: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: mskelton/changelog-reminder-action@v3
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: mskelton/changelog-reminder-action@41fc0852a6e00fc4506a5d7b8a4178062743133a # v3.0.0
