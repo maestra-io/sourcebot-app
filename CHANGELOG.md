@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Bumped simple-git to v4, Next.js to 16.3.8, Go to 1.26.10 and the bundled Zoekt and npm dependencies to fix CVEs. [#7](https://github.com/maestra-io/sourcebot-app/pull/7)
+- Bumped Next.js to 16.4.5, next-auth to 5.0.0-beta.32, @auth/core to 0.41.3, @sentry/nextjs to 10.78.0 and seroval to 1.7.7 to fix CVEs. [#11](https://github.com/maestra-io/sourcebot-app/pull/11)
 
 ## [4.17.4] - 2026-05-30
 
