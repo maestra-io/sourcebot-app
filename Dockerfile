@@ -181,7 +181,8 @@ ENV SOURCEBOT_LOG_LEVEL=info
 # Sourcebot collects anonymous usage data using [PostHog](https://posthog.com/). Uncomment this line to disable.
 # ENV SOURCEBOT_TELEMETRY_DISABLED=1
 
-# Configure dependencies
+# Configure dependencies. `apk upgrade` is what picks up Alpine security fixes: the release
+# build has no layer cache, so a push here rebuilds against the current packages.
 RUN apk add --no-cache git ca-certificates bind-tools tini jansson wget supervisor uuidgen curl perl jq redis postgresql16 postgresql16-contrib openssl util-linux unzip && \
     apk upgrade --no-cache
 
