@@ -15,19 +15,26 @@ ARG NEXT_PUBLIC_LANGFUSE_PUBLIC_KEY
 ARG NEXT_PUBLIC_LANGFUSE_BASE_URL
 ARG NEXT_PUBLIC_BUILD_COMMIT_SHA
 
-FROM node:24-alpine3.23 AS node-alpine
-FROM golang:1.26.10-alpine AS go-alpine
+FROM packages.maestra.io/docker-hub/library/node:24-alpine3.23@sha256:0efee1e068d21f6edcab7fa8c962fc4ecd50d4e28727bc23963379b63ee318ab AS node-alpine
+FROM packages.maestra.io/docker-hub/library/golang:1.26.10-alpine@sha256:87c65a688975c0b1d4585d204874c45ca78354670e3a5f11368c5a492303d696 AS go-alpine
 # ----------------------------------
 
 # ------ Build Zoekt ------
 FROM go-alpine AS zoekt-builder
-RUN apk add --no-cache ca-certificates
+# apk, Go modules and yarn packages go through nora (packages.maestra.io, 3-day hold,
+# maestra-io/issues-maestra#1649); the token is the PRIVATE_PACKAGES_TOKEN BuildKit secret.
+RUN --mount=type=secret,id=PRIVATE_PACKAGES_TOKEN,required=true --mount=type=bind,from=public.ecr.aws/g5f9s8a4/nora-apk:1.0.0@sha256:55df38687c301e6fefa230dc1c71a8841618214cc549ade71be740b25822a00e,target=/nora-apk \
+    /nora-apk/nora-apk add --no-cache ca-certificates
 WORKDIR /zoekt
 COPY vendor/zoekt/go.mod vendor/zoekt/go.sum ./
-RUN go mod download
+RUN --mount=type=secret,id=PRIVATE_PACKAGES_TOKEN,env=NORA_TOKEN,required=true \
+    GOPROXY="https://token:${NORA_TOKEN}@packages.maestra.io/go" go mod download
 COPY vendor/zoekt ./
 # x/net and klauspost/compress CVE fixes not yet in the pinned zoekt submodule.
-RUN go get golang.org/x/net@v0.60.0 github.com/klauspost/compress@v1.18.7 && go mod tidy
+RUN --mount=type=secret,id=PRIVATE_PACKAGES_TOKEN,env=NORA_TOKEN,required=true \
+    export GOPROXY="https://token:${NORA_TOKEN}@packages.maestra.io/go"&& \
+    go get golang.org/x/net@v0.60.0 github.com/klauspost/compress@v1.18.7 && go mod tidy
+ENV GOPROXY=off
 RUN CGO_ENABLED=0 GOOS=linux go build -o /cmd/ ./cmd/...
 # -------------------------
 
@@ -42,10 +49,14 @@ COPY ./packages/schemas ./packages/schemas
 COPY ./packages/shared ./packages/shared
 COPY ./packages/queryLanguage ./packages/queryLanguage
 
-RUN yarn workspace @sourcebot/db install
-RUN yarn workspace @sourcebot/schemas install
-RUN yarn workspace @sourcebot/shared install
-RUN yarn workspace @sourcebot/query-language install
+RUN --mount=type=secret,id=PRIVATE_PACKAGES_TOKEN,env=YARN_NPM_AUTH_TOKEN,required=true \
+    YARN_NPM_REGISTRY_SERVER=https://packages.maestra.io/npm YARN_NPM_ALWAYS_AUTH=true yarn workspace @sourcebot/db install
+RUN --mount=type=secret,id=PRIVATE_PACKAGES_TOKEN,env=YARN_NPM_AUTH_TOKEN,required=true \
+    YARN_NPM_REGISTRY_SERVER=https://packages.maestra.io/npm YARN_NPM_ALWAYS_AUTH=true yarn workspace @sourcebot/schemas install
+RUN --mount=type=secret,id=PRIVATE_PACKAGES_TOKEN,env=YARN_NPM_AUTH_TOKEN,required=true \
+    YARN_NPM_REGISTRY_SERVER=https://packages.maestra.io/npm YARN_NPM_ALWAYS_AUTH=true yarn workspace @sourcebot/shared install
+RUN --mount=type=secret,id=PRIVATE_PACKAGES_TOKEN,env=YARN_NPM_AUTH_TOKEN,required=true \
+    YARN_NPM_REGISTRY_SERVER=https://packages.maestra.io/npm YARN_NPM_ALWAYS_AUTH=true yarn workspace @sourcebot/query-language install
 # ------------------------------------
 
 # ------ Build Web ------
@@ -78,7 +89,8 @@ ARG SENTRY_SMUAT
 ENV SENTRY_SMUAT=$SENTRY_SMUAT
 # -----------
 
-RUN apk add --no-cache libc6-compat
+RUN --mount=type=secret,id=PRIVATE_PACKAGES_TOKEN,required=true --mount=type=bind,from=public.ecr.aws/g5f9s8a4/nora-apk:1.0.0@sha256:55df38687c301e6fefa230dc1c71a8841618214cc549ade71be740b25822a00e,target=/nora-apk \
+    /nora-apk/nora-apk add --no-cache libc6-compat
 WORKDIR /app
 
 COPY package.json yarn.lock* .yarnrc.yml ./
@@ -91,7 +103,8 @@ COPY --from=shared-libs-builder /app/packages/shared ./packages/shared
 COPY --from=shared-libs-builder /app/packages/queryLanguage ./packages/queryLanguage
 
 # Fixes arm64 timeouts
-RUN yarn workspace @sourcebot/web install
+RUN --mount=type=secret,id=PRIVATE_PACKAGES_TOKEN,env=YARN_NPM_AUTH_TOKEN,required=true \
+    YARN_NPM_REGISTRY_SERVER=https://packages.maestra.io/npm YARN_NPM_ALWAYS_AUTH=true yarn workspace @sourcebot/web install
 
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN yarn workspace @sourcebot/web build
@@ -128,12 +141,14 @@ COPY --from=shared-libs-builder /app/packages/db ./packages/db
 COPY --from=shared-libs-builder /app/packages/schemas ./packages/schemas
 COPY --from=shared-libs-builder /app/packages/shared ./packages/shared
 COPY --from=shared-libs-builder /app/packages/queryLanguage ./packages/queryLanguage
-RUN yarn workspace @sourcebot/backend install
+RUN --mount=type=secret,id=PRIVATE_PACKAGES_TOKEN,env=YARN_NPM_AUTH_TOKEN,required=true \
+    YARN_NPM_REGISTRY_SERVER=https://packages.maestra.io/npm YARN_NPM_ALWAYS_AUTH=true yarn workspace @sourcebot/backend install
 RUN yarn workspace @sourcebot/backend build
 
 # Upload source maps to Sentry if we have the necessary build-time args.
-RUN if [ -n "$SENTRY_SMUAT" ] && [ -n "$SENTRY_ORG" ] && [ -n "$SENTRY_BACKEND_PROJECT" ] && [ -n "$SENTRY_RELEASE" ]; then \
-    apk add --no-cache curl; \
+RUN --mount=type=secret,id=PRIVATE_PACKAGES_TOKEN,required=true --mount=type=bind,from=public.ecr.aws/g5f9s8a4/nora-apk:1.0.0@sha256:55df38687c301e6fefa230dc1c71a8841618214cc549ade71be740b25822a00e,target=/nora-apk \
+    if [ -n "$SENTRY_SMUAT" ] && [ -n "$SENTRY_ORG" ] && [ -n "$SENTRY_BACKEND_PROJECT" ] && [ -n "$SENTRY_RELEASE" ]; then \
+    /nora-apk/nora-apk add --no-cache curl; \
     curl -sL https://sentry.io/get-cli/ | sh; \
     sentry-cli login --auth-token $SENTRY_SMUAT; \
     sentry-cli sourcemaps inject --org $SENTRY_ORG --project $SENTRY_BACKEND_PROJECT --release $SENTRY_RELEASE ./packages/backend/dist; \
@@ -183,8 +198,9 @@ ENV SOURCEBOT_LOG_LEVEL=info
 
 # Configure dependencies. `apk upgrade` is what picks up Alpine security fixes: the release
 # build has no layer cache, so a push here rebuilds against the current packages.
-RUN apk add --no-cache git ca-certificates bind-tools tini jansson wget supervisor uuidgen curl perl jq redis postgresql16 postgresql16-contrib openssl util-linux unzip && \
-    apk upgrade --no-cache
+RUN --mount=type=secret,id=PRIVATE_PACKAGES_TOKEN,required=true --mount=type=bind,from=public.ecr.aws/g5f9s8a4/nora-apk:1.0.0@sha256:55df38687c301e6fefa230dc1c71a8841618214cc549ade71be740b25822a00e,target=/nora-apk \
+    /nora-apk/nora-apk add --no-cache git ca-certificates bind-tools tini jansson wget supervisor uuidgen curl perl jq redis postgresql16 postgresql16-contrib openssl util-linux unzip && \
+    /nora-apk/nora-apk upgrade --no-cache
 
 # Remove npm (unused — we use Yarn). The Node.js base image bundles npm
 # with its own transitive dependencies (minimatch, tar, picomatch, etc.)
@@ -215,7 +231,13 @@ COPY .yarn ./.yarn
 
 # Configure zoekt
 COPY vendor/zoekt/install-ctags-alpine.sh .
-RUN ./install-ctags-alpine.sh && rm install-ctags-alpine.sh && \
+# The vendored zoekt script calls apk itself: an `apk` shim first in PATH sends it to
+# nora-apk, whose own inner `apk` call goes to the real /sbin/apk (NORA_APK_INNER).
+RUN --mount=type=secret,id=PRIVATE_PACKAGES_TOKEN,required=true --mount=type=bind,from=public.ecr.aws/g5f9s8a4/nora-apk:1.0.0@sha256:55df38687c301e6fefa230dc1c71a8841618214cc549ade71be740b25822a00e,target=/nora-apk \
+    mkdir /tmp/nora-shim && \
+    printf '#!/bin/sh\n[ -n "${NORA_APK_INNER:-}" ] && exec /sbin/apk "$@"\nNORA_APK_INNER=1 exec /nora-apk/nora-apk "$@"\n' > /tmp/nora-shim/apk && \
+    chmod 755 /tmp/nora-shim/apk && \
+    PATH="/tmp/nora-shim:$PATH" ./install-ctags-alpine.sh && rm -rf install-ctags-alpine.sh /tmp/nora-shim && \
     # Clean up ctags build artifacts
     rm -rf /tmp/*
 RUN mkdir -p ${DATA_CACHE_DIR}
