@@ -30,10 +30,36 @@ COPY vendor/zoekt/go.mod vendor/zoekt/go.sum ./
 RUN --mount=type=secret,id=PRIVATE_PACKAGES_TOKEN,env=NORA_TOKEN,required=true \
     GOPROXY="https://token:${NORA_TOKEN}@packages.maestra.io/go" go mod download
 COPY vendor/zoekt ./
-# x/net and klauspost/compress CVE fixes not yet in the pinned zoekt submodule.
+# Newest releases nora serves (3-day quarantine) of the direct and security-relevant zoekt deps;
+# x/net 0.62.0 is CVE-2026-78661. The submodule pins older ones; refresh this list when it moves.
 RUN --mount=type=secret,id=PRIVATE_PACKAGES_TOKEN,env=NORA_TOKEN,required=true \
     export GOPROXY="https://token:${NORA_TOKEN}@packages.maestra.io/go"&& \
-    go get golang.org/x/net@v0.60.0 github.com/klauspost/compress@v1.18.7 && go mod tidy
+    go get \
+        github.com/go-git/go-billy/v5@v5.9.2 \
+        github.com/go-git/go-git/v5@v5.19.3 \
+        github.com/klauspost/compress@v1.20.3 \
+        github.com/prometheus/client_golang@v1.25.0 \
+        github.com/prometheus/common@v0.73.1 \
+        github.com/prometheus/procfs@v0.23.0 \
+        go.opentelemetry.io/otel@v1.47.0 \
+        go.opentelemetry.io/otel/bridge/opentracing@v1.47.0 \
+        go.opentelemetry.io/otel/exporters/otlp/otlptrace@v1.47.0 \
+        go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc@v1.47.0 \
+        go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp@v1.47.0 \
+        go.opentelemetry.io/otel/sdk@v1.47.0 \
+        go.opentelemetry.io/otel/trace@v1.47.0 \
+        go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc@v0.72.0 \
+        go.opentelemetry.io/contrib/propagators/jaeger@v1.47.0 \
+        go.opentelemetry.io/contrib/propagators/ot@v1.47.0 \
+        golang.org/x/crypto@v0.58.0 \
+        golang.org/x/net@v0.62.0 \
+        golang.org/x/oauth2@v0.38.0 \
+        golang.org/x/sync@v0.25.0 \
+        golang.org/x/sys@v0.50.0 \
+        golang.org/x/text@v0.43.0 \
+        google.golang.org/grpc@v1.85.0 \
+        google.golang.org/protobuf@v1.36.12 \
+    && go mod tidy
 ENV GOPROXY=off
 RUN CGO_ENABLED=0 GOOS=linux go build -o /cmd/ ./cmd/...
 # -------------------------
