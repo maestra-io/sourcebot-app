@@ -76,13 +76,13 @@ COPY ./packages/shared ./packages/shared
 COPY ./packages/queryLanguage ./packages/queryLanguage
 
 RUN --mount=type=secret,id=PRIVATE_PACKAGES_TOKEN,env=YARN_NPM_AUTH_TOKEN,required=true \
-    YARN_NPM_REGISTRY_SERVER=https://packages.maestra.io/npm YARN_NPM_ALWAYS_AUTH=true yarn workspace @sourcebot/db install
+    yarn workspace @sourcebot/db install
 RUN --mount=type=secret,id=PRIVATE_PACKAGES_TOKEN,env=YARN_NPM_AUTH_TOKEN,required=true \
-    YARN_NPM_REGISTRY_SERVER=https://packages.maestra.io/npm YARN_NPM_ALWAYS_AUTH=true yarn workspace @sourcebot/schemas install
+    yarn workspace @sourcebot/schemas install
 RUN --mount=type=secret,id=PRIVATE_PACKAGES_TOKEN,env=YARN_NPM_AUTH_TOKEN,required=true \
-    YARN_NPM_REGISTRY_SERVER=https://packages.maestra.io/npm YARN_NPM_ALWAYS_AUTH=true yarn workspace @sourcebot/shared install
+    yarn workspace @sourcebot/shared install
 RUN --mount=type=secret,id=PRIVATE_PACKAGES_TOKEN,env=YARN_NPM_AUTH_TOKEN,required=true \
-    YARN_NPM_REGISTRY_SERVER=https://packages.maestra.io/npm YARN_NPM_ALWAYS_AUTH=true yarn workspace @sourcebot/query-language install
+    yarn workspace @sourcebot/query-language install
 # ------------------------------------
 
 # ------ Build Web ------
@@ -130,7 +130,7 @@ COPY --from=shared-libs-builder /app/packages/queryLanguage ./packages/queryLang
 
 # Fixes arm64 timeouts
 RUN --mount=type=secret,id=PRIVATE_PACKAGES_TOKEN,env=YARN_NPM_AUTH_TOKEN,required=true \
-    YARN_NPM_REGISTRY_SERVER=https://packages.maestra.io/npm YARN_NPM_ALWAYS_AUTH=true yarn workspace @sourcebot/web install
+    yarn workspace @sourcebot/web install
 
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN yarn workspace @sourcebot/web build
@@ -168,7 +168,7 @@ COPY --from=shared-libs-builder /app/packages/schemas ./packages/schemas
 COPY --from=shared-libs-builder /app/packages/shared ./packages/shared
 COPY --from=shared-libs-builder /app/packages/queryLanguage ./packages/queryLanguage
 RUN --mount=type=secret,id=PRIVATE_PACKAGES_TOKEN,env=YARN_NPM_AUTH_TOKEN,required=true \
-    YARN_NPM_REGISTRY_SERVER=https://packages.maestra.io/npm YARN_NPM_ALWAYS_AUTH=true yarn workspace @sourcebot/backend install
+    yarn workspace @sourcebot/backend install
 RUN yarn workspace @sourcebot/backend build
 
 # Upload source maps to Sentry if we have the necessary build-time args.
